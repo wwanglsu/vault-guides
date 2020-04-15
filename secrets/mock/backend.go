@@ -2,14 +2,20 @@ package mock
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/jsonutil"
 	"github.com/hashicorp/vault/sdk/logical"
+
+	"github.com/aws/aws-sdk-go/aws"
 )
 
 // Factory configures and returns Mock backends
@@ -30,7 +36,6 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 	}
 
 	b.Backend.Setup(ctx, conf)
-
 	return b, nil
 }
 
@@ -63,7 +68,7 @@ func (b *backend) paths() []*framework.Path {
 					Summary:  "Store a secret at the specified location.",
 				},
 				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.handleWrite,
+					Callback: b.handleEncrypt, //testing encrypt.    b.handleWrite
 				},
 				logical.DeleteOperation: &framework.PathOperation{
 					Callback: b.handleDelete,
@@ -74,6 +79,64 @@ func (b *backend) paths() []*framework.Path {
 			ExistenceCheck: b.handleExistenceCheck,
 		},
 	}
+}
+
+func (b *backend) handleEncrypt(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	if req.ClientToken == "" {
+		return nil, fmt.Errorf("client token empty")
+	}
+
+	// Check to make sure that kv pairs provided
+	if len(req.Data) == 0 {
+		return nil, fmt.Errorf("data must be provided to store in secret")
+	}
+
+	path := data.Get("path").(string)
+	fmt.Println("pppppp", path)
+	fmt.Println("ddddd", data)
+	// JSON encode the data
+	buf, err := json.Marshal(req.Data)
+	if err != nil {
+		return nil, errwrap.Wrapf("json encoding failed: {{err}}", err)
+	}
+
+	os.Setenv("AWS_ACCESS_KEY_ID", "AKIAICPWGJX5GPZUPH3A")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "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")
+	sess, err := session.NewSession(&aws.Config{
+		Region:                        aws.String("us-west-2"),
+		CredentialsChainVerboseErrors: aws.Bool(true)},
+	)
+
+	// Create KMS service client
+	svc := kms.New(sess)
+	resp, err := sess.Config.Credentials.Get()
+	fmt.Println("111111", resp, err)
+
+	keyId := "arn:aws:kms:us-west-2:679498570023:key/0e97f126-e466-4c1f-bb70-0187b86329c4"
+
+	text := "1234567890"
+
+	// Encrypt the data
+	result, err := svc.Encrypt(&kms.EncryptInput{
+		KeyId:     aws.String(keyId),
+		Plaintext: []byte(text),
+	})
+
+	if err != nil {
+		fmt.Println("Got error encrypting data: ", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Blob (base-64 byte array):")
+	fmt.Println(result.GoString())
+	fmt.Println(result.CiphertextBlob)
+	base64 := base64.StdEncoding.EncodeToString(result.CiphertextBlob)
+	fmt.Println("bbbb" + base64)
+
+	// Store kv pairs in map at specified path
+	b.store[req.ClientToken+"/"+path] = buf
+
+	return nil, nil
 }
 
 func (b *backend) handleExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {

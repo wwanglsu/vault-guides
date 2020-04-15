@@ -4,9 +4,9 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-hclog"
-	mock "github.com/wwanglsu/vault-guides/secrets/mock"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/plugin"
+	mock "github.com/wwanglsu/vault-guides/secrets/mock"
 )
 
 func main() {
