@@ -64,12 +64,12 @@ func (b *backend) paths() []*framework.Path {
 					Summary:  "Retrieve the secret from the map.",
 				},
 				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.handleWrite,
+					Callback: b.handleEncrypt,
 					Summary:  "Store a secret at the specified location.",
 				},
-				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.handleEncrypt, //testing encrypt.    b.handleWrite
-				},
+				//logical.CreateOperation: &framework.PathOperation{
+				//	Callback: b.handleEncrypt, //testing encrypt.    b.handleWrite
+				//},
 				logical.DeleteOperation: &framework.PathOperation{
 					Callback: b.handleDelete,
 					Summary:  "Deletes the secret at the specified location.",
